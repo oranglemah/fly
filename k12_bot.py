@@ -9,12 +9,16 @@ import os
 import random
 from datetime import datetime, timedelta
 from functools import wraps
+from dotenv import load_dotenv
 from document_generator import (
     generate_faculty_id, 
     generate_pay_stub, 
     generate_employment_letter,
     image_to_bytes
 )
+
+# Load environment variables dari .env file
+load_dotenv()
 
 # =====================================================
 # KONFIGURASI
@@ -30,7 +34,7 @@ ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',') 
 # States untuk ConversationHandler
 NAME, EMAIL, SCHOOL, SHEERID_URL = range(4)
 
-# Storage untuk data user
+# Storage untuk data user (per-user basis)
 user_data = {}
 
 # =====================================================
@@ -48,29 +52,27 @@ def restricted(func):
         if not ALLOWED_USER_IDS:
             # Jika whitelist kosong, tampilkan warning
             await update.message.reply_text(
-                "⚠️ *Bot Configuration Error*\n\n"
+                "Bot Configuration Error\n\n"
                 "No authorized users configured.\n"
-                "Please contact bot administrator.",
-                parse_mode='Markdown'
+                "Please contact bot administrator."
             )
             print(f"⚠️ WARNING: ALLOWED_USER_IDS not configured!")
-            return ConversationHandler.END
+            return None
         
         if user_id not in ALLOWED_USER_IDS:
             await update.message.reply_text(
-                "🚫 *Access Denied*\n\n"
+                "🚫 Access Denied\n\n"
                 "You are not authorized to use this bot.\n\n"
                 f"👤 Name: {first_name}\n"
-                f"🆔 Your Telegram ID: `{user_id}`\n"
+                f"🆔 Your Telegram ID: {user_id}\n"
                 f"📛 Username: @{username}\n\n"
-                "Please contact the bot owner to request access.",
-                parse_mode='Markdown'
+                "Please contact the bot owner to request access."
             )
             print(f"❌ Unauthorized access attempt:")
             print(f"   User ID: {user_id}")
             print(f"   Username: @{username}")
             print(f"   Name: {first_name}")
-            return ConversationHandler.END
+            return None
         
         # User authorized - proceed
         print(f"✅ Authorized user: {user_id} (@{username})")
@@ -88,9 +90,8 @@ def restricted_callback(func):
         if user_id not in ALLOWED_USER_IDS:
             await query.answer("🚫 Access Denied", show_alert=True)
             await query.edit_message_text(
-                "🚫 *Access Denied*\n\n"
-                f"Your ID: `{user_id}`",
-                parse_mode='Markdown'
+                f"🚫 Access Denied\n\n"
+                f"Your ID: {user_id}"
             )
             print(f"❌ Unauthorized callback from user: {user_id}")
             return
@@ -114,13 +115,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"{'='*60}\n")
     
     await update.message.reply_text(
-        f"🎓 *K12 Teacher Verification Bot*\n\n"
+        f"🎓 K12 Teacher Verification Bot\n\n"
         f"Welcome, {first_name}! 👋\n\n"
         "Send your SheerID verification URL:\n\n"
-        "`https://services.sheerid.com/verify/.../verificationId=...`\n\n"
+        "https://services.sheerid.com/verify/.../verificationId=...\n\n"
         "Example:\n"
-        "`https://services.sheerid.com/verify/68d47554...`",
-        parse_mode='Markdown'
+        "https://services.sheerid.com/verify/68d47554...\n\n"
+        "⏱️ Timeout: 5 minutes"
     )
     return SHEERID_URL
 
@@ -133,10 +134,9 @@ async def get_sheerid_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match = re.search(r'verificationId=([a-f0-9]{24})', url, re.IGNORECASE)
     if not match:
         await update.message.reply_text(
-            "❌ *Invalid URL!*\n\n"
+            "❌ Invalid URL!\n\n"
             "Please send a valid SheerID verification URL.\n"
-            "Format: `verificationId=...`",
-            parse_mode='Markdown'
+            "Format: verificationId=..."
         )
         return SHEERID_URL
 
@@ -144,10 +144,9 @@ async def get_sheerid_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data[user_id] = {'verification_id': verification_id}
 
     await update.message.reply_text(
-        f"✅ *Verification ID:* `{verification_id}`\n\n"
-        "What's your *full name*?\n"
-        "Example: Elizabeth Bradly",
-        parse_mode='Markdown'
+        f"✅ Verification ID: {verification_id}\n\n"
+        "What's your full name?\n"
+        "Example: Elizabeth Bradly"
     )
     return NAME
 
@@ -160,9 +159,8 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     parts = full_name.split()
     if len(parts) < 2:
         await update.message.reply_text(
-            "❌ Please provide *first name AND last name*\n"
-            "Example: John Smith",
-            parse_mode='Markdown'
+            "❌ Please provide first name AND last name\n"
+            "Example: John Smith"
         )
         return NAME
 
@@ -172,9 +170,8 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data[user_id]['full_name'] = full_name
 
     await update.message.reply_text(
-        f"✅ *Name:* {full_name}\n\n"
-        "What's your *school email address*?",
-        parse_mode='Markdown'
+        f"✅ Name: {full_name}\n\n"
+        "What's your school email address?"
     )
     return EMAIL
 
@@ -187,18 +184,16 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if '@' not in email or '.' not in email:
         await update.message.reply_text(
             "❌ Invalid email format!\n"
-            "Please provide a valid school email address.",
-            parse_mode='Markdown'
+            "Please provide a valid school email address."
         )
         return EMAIL
 
     user_data[user_id]['email'] = email
 
     await update.message.reply_text(
-        f"✅ *Email:* `{email}`\n\n"
-        "What's your *school name*?\n"
-        "Example: The Clinton School",
-        parse_mode='Markdown'
+        f"✅ Email: {email}\n\n"
+        "What's your school name?\n"
+        "Example: The Clinton School"
     )
     return SCHOOL
 
@@ -210,9 +205,8 @@ async def get_school(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Kirim status searching
     msg = await update.message.reply_text(
-        f"⚙️ Searching for schools matching: *{school_name}*\n"
-        "Please wait...",
-        parse_mode='Markdown'
+        f"⚙️ Searching for schools matching: {school_name}\n"
+        "Please wait..."
     )
 
     # Search schools
@@ -220,9 +214,8 @@ async def get_school(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not schools:
         await msg.edit_text(
-            "❌ *No schools found!*\n\n"
-            "Try a different school name:",
-            parse_mode='Markdown'
+            "❌ No schools found!\n\n"
+            "Try a different school name:"
         )
         return SCHOOL
 
@@ -231,6 +224,21 @@ async def get_school(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Display hasil pencarian
     await display_schools(update, schools, user_id)
+    return ConversationHandler.END
+
+async def timeout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk conversation timeout"""
+    user_id = update.effective_user.id
+    
+    # Clear user data
+    if user_id in user_data:
+        del user_data[user_id]
+    
+    await update.message.reply_text(
+        "⏱️ Session Timeout\n\n"
+        "You didn't respond for 5 minutes.\n"
+        "Please type /start to begin again."
+    )
     return ConversationHandler.END
 
 # =====================================================
@@ -302,9 +310,9 @@ async def search_schools(query: str) -> list:
 async def display_schools(update, schools, user_id):
     """Display hasil pencarian sekolah dengan inline keyboard"""
 
-    text = "🏫 *SCHOOL SEARCH RESULTS*\n\n"
-    text += f"Query: `{user_data[user_id]['school_name']}`\n"
-    text += f"Found: *{len(schools)}* schools\n\n"
+    text = "🏫 SCHOOL SEARCH RESULTS\n\n"
+    text += f"Query: {user_data[user_id]['school_name']}\n"
+    text += f"Found: {len(schools)} schools\n\n"
 
     keyboard = []
 
@@ -322,9 +330,9 @@ async def display_schools(update, schools, user_id):
         location = f"{city}, {state}" if city and state else state or 'US'
 
         # Tambahkan ke text display
-        text += f"{idx+1}. *{name}*\n"
+        text += f"{idx+1}. {name}\n"
         text += f"   📍 {location}\n"
-        text += f"   └─ Type: `{school_type}`\n\n"
+        text += f"   └─ Type: {school_type}\n\n"
 
         # Buat inline button
         button_text = f"{idx+1}. {name[:40]}{'...' if len(name) > 40 else ''}"
@@ -335,13 +343,12 @@ async def display_schools(update, schools, user_id):
             )
         ])
 
-    text += "\n👆 *Click button to select school*"
+    text += "\n👆 Click button to select school"
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         text,
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        reply_markup=reply_markup
     )
 
 # =====================================================
@@ -362,9 +369,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Validasi session
     if user_id not in user_data:
         await query.edit_message_text(
-            "❌ *Session expired*\n\n"
-            "Please /start again",
-            parse_mode='Markdown'
+            "❌ Session expired\n\n"
+            "Please /start again"
         )
         return
 
@@ -375,12 +381,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     school_id = school.get('id')
 
     await query.edit_message_text(
-        f"✅ *Selected School:*\n"
+        f"✅ Selected School:\n"
         f"Name: {school_name}\n"
-        f"Type: `{school_type}`\n"
-        f"ID: `{school_id}`\n\n"
-        f"⚙️ *Generating documents...*",
-        parse_mode='Markdown'
+        f"Type: {school_type}\n"
+        f"ID: {school_id}\n\n"
+        f"⚙️ Generating documents..."
     )
 
     # Get user data
@@ -407,9 +412,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Update status
         await query.edit_message_text(
-            f"✅ *Documents generated*\n\n"
-            f"⚙️ *Submitting to SheerID...*",
-            parse_mode='Markdown'
+            f"✅ Documents generated\n\n"
+            f"⚙️ Submitting to SheerID..."
         )
 
         # Submit ke SheerID
@@ -422,46 +426,40 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Kirim dokumen-dokumen
             await query.message.reply_photo(
                 photo=image_to_bytes(id_card),
-                caption=f"📇 *Faculty ID Card*\n`{faculty_id}`",
-                parse_mode='Markdown'
+                caption=f"📇 Faculty ID Card\n{faculty_id}"
             )
 
             await query.message.reply_photo(
                 photo=image_to_bytes(pay_stub),
-                caption="💰 *Payroll Statement*",
-                parse_mode='Markdown'
+                caption="💰 Payroll Statement"
             )
 
             await query.message.reply_photo(
                 photo=image_to_bytes(letter),
-                caption="📄 *Employment Verification Letter*",
-                parse_mode='Markdown'
+                caption="📄 Employment Verification Letter"
             )
 
             # Send success message
             await query.message.reply_text(
-                f"✅ *UPLOAD DOC SUCCESS!*\n\n"
-                f"👤 *Name:* {full_name}\n"
-                f"🏫 *School:* {school_name}\n"
-                f"📧 *Email:* `{email}`\n"
-                f"🆔 *Faculty ID:* `{faculty_id}`\n\n"
-                f"🔗 *Status:* UNDER REVIEW\n\n"
-                f"Type /start for another verification",
-                parse_mode='Markdown'
+                f"✅ UPLOAD DOC SUCCESS!\n\n"
+                f"👤 Name: {full_name}\n"
+                f"🏫 School: {school_name}\n"
+                f"📧 Email: {email}\n"
+                f"🆔 Faculty ID: {faculty_id}\n\n"
+                f"🔗 Status: UNDER REVIEW\n\n"
+                f"Type /start for another verification"
             )
         else:
             await query.message.reply_text(
-                f"❌ *VERIFICATION FAILED*\n\n"
+                f"❌ VERIFICATION FAILED\n\n"
                 f"Error: {result.get('message')}\n\n"
-                f"Please try again or contact support.",
-                parse_mode='Markdown'
+                f"Please try again or contact support."
             )
 
     except Exception as e:
         print(f"❌ Error in button_callback: {e}")
         await query.message.reply_text(
-            f"❌ *Error occurred:*\n`{str(e)}`",
-            parse_mode='Markdown'
+            f"❌ Error occurred:\n{str(e)}"
         )
 
 # =====================================================
@@ -630,9 +628,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del user_data[user_id]
 
     await update.message.reply_text(
-        "❌ *Operation cancelled*\n\n"
-        "Type /start to begin again",
-        parse_mode='Markdown'
+        "❌ Operation cancelled\n\n"
+        "Type /start to begin again"
     )
     return ConversationHandler.END
 
@@ -646,7 +643,7 @@ def main():
     # Validasi BOT_TOKEN
     if not BOT_TOKEN:
         print("❌ ERROR: BOT_TOKEN environment variable not set!")
-        print("Set it with: export BOT_TOKEN='your_bot_token'")
+        print("Set it in .env file: BOT_TOKEN=your_bot_token")
         return
 
     print("\n" + "="*60)
@@ -663,14 +660,14 @@ def main():
             print(f"   - User ID: {uid}")
     else:
         print("⚠️ WARNING: No authorized users configured!")
-        print("   Set ALLOWED_USER_IDS environment variable")
+        print("   Set ALLOWED_USER_IDS in .env file")
     
     print("="*60 + "\n")
 
     # Build application
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Setup Conversation Handler
+    # Setup Conversation Handler dengan concurrent support & timeout
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -678,8 +675,12 @@ def main():
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
             SCHOOL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_school)],
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, timeout_handler)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
+        per_chat=True,           # Enable per-chat conversation
+        per_user=True,           # Enable per-user conversation (support 20+ users bersamaan)
+        conversation_timeout=300  # 5 menit timeout (300 detik)
     )
 
     # Add handlers
@@ -688,7 +689,9 @@ def main():
 
     # Start bot
     print("🚀 Bot is starting...")
-    print("✅ Bot is running! Press Ctrl+C to stop.\n")
+    print("✅ Bot is running! Press Ctrl+C to stop.")
+    print("⏱️  Conversation timeout: 5 minutes")
+    print("👥 Concurrent users: Unlimited (optimized for 20+ users)\n")
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
